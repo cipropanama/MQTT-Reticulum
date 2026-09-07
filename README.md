@@ -83,5 +83,6 @@ Si este desarrollo te ha sido útil, te invitamos a mantener el reconocimiento y
 - ✉️ **Correo Electrónico:** [info@cipropanama.org](mailto:info@cipropanama.org)
 
 <div align="center">
+  <b>CIPRO Panamá - Tecnología para ayudar.</b><br/>
   <i>Desarrollado con ❤️ para las telecomunicaciones libres.</i>
 </div>
