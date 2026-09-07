@@ -66,6 +66,9 @@ class RNSWorker:
         # Proveemos acuses de recibo para enlaces
         self.local_destination.set_proof_strategy(RNS.Destination.PROVE_ALL)
         
+        # Anunciamos la identidad en la red para que los routers sepan cómo alcanzarnos
+        self.local_destination.announce()
+        
         local_hash = RNS.hexrep(self.local_destination.hash, delimit=False)
         logger.info(f"Reticulum Listo. Hash Local (Escuchando): {local_hash}")
         
