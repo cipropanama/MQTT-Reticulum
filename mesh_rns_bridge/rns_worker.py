@@ -25,6 +25,7 @@ class RNSWorker:
         self.local_destination: Optional[RNS.Destination] = None
         self.remote_destination: Optional[RNS.Destination] = None
         self.rns_link: Optional[RNS.Link] = None
+        self.active_links: set[RNS.Link] = set()
         
         # Callback para cuando llega un mensaje desde RNS: func(data_bytes: bytes)
         self.on_message_callback: Optional[Callable[[bytes], None]] = None
@@ -125,10 +126,13 @@ class RNSWorker:
         logger.info(f"Enlace RNS entrante establecido desde {link.get_remote_identity()}")
         link.set_packet_callback(self._on_rns_packet_from_link)
         link.set_link_closed_callback(self._on_link_closed)
+        self.active_links.add(link)
 
     def _on_link_closed(self, link: RNS.Link) -> None:
         """Callback cuando un enlace se cierra."""
         logger.info("Enlace RNS cerrado.")
+        if link in self.active_links:
+            self.active_links.remove(link)
         # Si era nuestro enlace de salida, intentamos reconectar
         if self.config.rns_send_mode == "link" and link == self.rns_link:
             logger.info("El enlace de salida se cerró. Se intentará reabrir en el próximo envío.")
@@ -159,8 +163,8 @@ class RNSWorker:
         Envía datos por RNS. Si el batching está activo, lo encola.
         Si no, lo envía inmediatamente.
         """
-        if not self.remote_destination:
-            logger.debug("Mensaje a enviar descartado: No hay destino remoto configurado.")
+        if not self.remote_destination and not self.active_links:
+            logger.debug("Mensaje a enviar descartado: No hay destino remoto ni enlaces activos.")
             return
 
         if self.config.batching_enabled:
@@ -171,23 +175,34 @@ class RNSWorker:
     def _do_send(self, data: bytes) -> None:
         """Ejecuta el envío real usando Packet o Link."""
         try:
-            if self.config.rns_send_mode == "link":
-                # Asegurar enlace
-                if not self.rns_link or self.rns_link.status != RNS.Link.ACTIVE:
-                    self._establish_link()
-                    
-                if self.rns_link and self.rns_link.status == RNS.Link.ACTIVE:
-                    packet = RNS.Packet(self.rns_link, data)
-                    packet.send()
-                    logger.debug(f"Datos enviados vía RNS Link ({len(data)} bytes)")
+            # 1. Enviar al destino fijo si existe
+            if self.remote_destination:
+                if self.config.rns_send_mode == "link":
+                    # Asegurar enlace
+                    if not self.rns_link or self.rns_link.status != RNS.Link.ACTIVE:
+                        self._establish_link()
+                        
+                    if self.rns_link and self.rns_link.status == RNS.Link.ACTIVE:
+                        packet = RNS.Packet(self.rns_link, data)
+                        packet.send()
+                        logger.debug(f"Datos enviados vía RNS Link Fijo ({len(data)} bytes)")
+                    else:
+                        logger.warning("No se pudo enviar por Link (no activo).")
+                        
                 else:
-                    logger.warning("No se pudo enviar por Link (no activo).")
-                    
-            else:
-                # Modo Packet
-                packet = RNS.Packet(self.remote_destination, data)
-                packet.send()
-                logger.debug(f"Datos enviados vía RNS Packet ({len(data)} bytes)")
+                    # Modo Packet
+                    packet = RNS.Packet(self.remote_destination, data)
+                    packet.send()
+                    logger.debug(f"Datos enviados vía RNS Packet Fijo ({len(data)} bytes)")
+
+            # 2. Enviar a todos los clientes dinámicos (Hub & Spoke)
+            for link in list(self.active_links):
+                if link.status == RNS.Link.ACTIVE:
+                    try:
+                        packet = RNS.Packet(link, data)
+                        packet.send()
+                    except Exception as e:
+                        logger.error(f"Error enviando a cliente dinámico por Link: {e}")
                 
         except ValueError as e:
              logger.error(f"Error de tamaño de paquete RNS: {e}. ¿Excede la MTU (~500 bytes)?")
