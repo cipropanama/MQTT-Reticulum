@@ -1,66 +1,87 @@
-# Mesh-RNS Bridge
+<div align="center">
+  <h1>🌐 Mesh-RNS Bridge</h1>
+  <p><b>Una solución de nivel de producción para interconectar brokers MQTT (Meshtastic) mediante Reticulum Network Stack (RNS)</b></p>
 
-**Desarrollo de código abierto para la comunidad CIPRO Panamá.**
+  [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+  [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+  [![Reticulum](https://img.shields.io/badge/Network-Reticulum-orange.svg)](https://reticulum.network/)
+  
+  <br />
+</div>
 
-Mesh-RNS Bridge es una solución modular de nivel de producción que permite interconectar brokers de MQTT (típicamente usados con dispositivos Meshtastic) a través del protocolo **Reticulum Network Stack (RNS)**. 
-Permite establecer redes de malla de largo alcance o intercontinentales, filtrando inteligentemente la telemetría y enrutando los mensajes deseados usando bajo ancho de banda.
+## 📌 Visión General
 
-## Licenciamiento y Uso Comunitario
+**Mesh-RNS Bridge** es un desarrollo de código abierto impulsado por la comunidad **CIPRO Panamá**. 
 
-Este proyecto está bajo licencia **MIT**. Su uso es totalmente libre para fines experimentales, de emergencia y comunitarios. 
+Permite establecer redes de malla de largo alcance o intercontinentales, puenteando el tráfico de dispositivos Meshtastic (vía MQTT) hacia otras redes de malla utilizando un ancho de banda extremadamente bajo gracias al protocolo RNS y a algoritmos de compresión y filtrado inteligente.
 
-El único requerimiento para su distribución y uso es **preservar el reconocimiento y enlace al proyecto original de CIPRO Panamá**, promoviendo así la colaboración abierta y el desarrollo tecnológico solidario.
+---
 
-## Características
+## ✨ Características Principales
 
-* **Cero variables hardcodeadas:** Configuración completa mediante `config.ini`.
-* **Motor de Filtrado Inteligente:** Control granular para dejar pasar solo los paquetes deseados (Textos, Telemetría, Posición, NodeInfo) y proteger enlaces de bajo ancho de banda con límites de tasa (rate limiting).
-* **Compresión msgpack:** Conversión binaria de alta eficiencia que reduce drásticamente el tamaño del payload sobre Reticulum.
-* **Resiliencia MQTT:** Conexión y reconexión automática de Paho-MQTT, aislando fallas temporales.
-* **Integración Systemd:** Operación como servicio daemon nativo en entornos Linux.
+- **⚙️ Configuración Desacoplada:** Cero variables hardcodeadas. Todo se gestiona desde un archivo `config.ini` limpio y centralizado.
+- **🛡️ Filtrado Inteligente:** Control granular para enrutar solo la información que importa (Mensajes de Texto, Telemetría, Posiciones o NodeInfo).
+- **🚦 Control de Tráfico (Rate Limiting):** Protege los enlaces RNS de bajo ancho de banda evadiendo ráfagas innecesarias de telemetría de un mismo nodo.
+- **📦 Compresión Nativa:** Conversión binaria de alta eficiencia (msgpack) que reduce drásticamente el tamaño del payload.
+- **🔄 Resiliencia:** Conexión y reconexión automática del cliente MQTT, diseñada para operar desatendida 24/7.
+- **🐧 Integración Linux:** Operación nativa como servicio `systemd`.
 
-## Guía de Instalación Rápida
+---
 
-1. **Clonar el repositorio:**
-   ```bash
-   git clone https://github.com/cipropanama/mesh-rns-bridge.git
-   cd mesh-rns-bridge
-   ```
+## 🚀 Guía de Instalación Rápida
 
-2. **Ejecutar el instalador (como root):**
-   ```bash
-   sudo ./install.sh
-   ```
-   *Esto creará un entorno virtual en `/opt/mesh-rns-bridge`, instalará las dependencias y configurará el servicio en systemd.*
+La instalación está automatizada para sistemas basados en Debian/Ubuntu.
 
-3. **Editar la configuración:**
-   Abra `/etc/mesh-rns-bridge/config.ini` con su editor favorito y ajuste los parámetros (MQTT host, tópicos, opciones de filtrado, etc.).
-   ```bash
-   sudo nano /etc/mesh-rns-bridge/config.ini
-   ```
+**1. Clonar el repositorio:**
+```bash
+git clone https://github.com/cipropanama/MQTT-Reticulum.git
+cd MQTT-Reticulum
+```
 
-4. **Levantar el servicio:**
-   ```bash
-   sudo systemctl start mesh-rns-bridge
-   ```
+**2. Ejecutar el instalador (requiere privilegios de superusuario):**
+```bash
+sudo ./install.sh
+```
+> *El script creará un entorno virtual aislado en `/opt/`, instalará las dependencias necesarias y preparará el servicio `systemd`.*
 
-   Puede verificar los logs en tiempo real con:
-   ```bash
-   sudo journalctl -u mesh-rns-bridge -f
-   ```
+**3. Configurar el puente:**
+Edite el archivo de configuración generado según las necesidades de su nodo:
+```bash
+sudo nano /etc/mesh-rns-bridge/config.ini
+```
 
-## Configuración de Nodos Distantes (Destination Hash)
+**4. Levantar el servicio:**
+```bash
+sudo systemctl start mesh-rns-bridge
+```
+*(Puede monitorear los logs en tiempo real utilizando `sudo journalctl -u mesh-rns-bridge -f`)*
 
-Para interconectar dos brokers distantes A y B usando Reticulum:
+---
 
-1. **Formato JSON:** Asegúrese de que el gateway de Meshtastic (o el nodo que inyecta datos al MQTT) tenga habilitada la salida en formato **JSON** si desea usar las opciones de filtrado granular (Telemetría, Posición, NodeInfo, etc.). De lo contrario, los paquetes binarios cifrados nativos serán ignorados por el puente para ahorrar ancho de banda.
-2. **Hashes Remotos:** Para la prueba de campo, necesitará dos instancias corriendo, y tendrá que cruzar los `destination_hash` en el archivo `config.ini` de cada lado.
-3. **Iniciar el Puente A:** Inicie el servicio en el primer servidor sin configurar `destination_hash`. Observe los logs para encontrar su *Hash Local*:
-   ```
-   Reticulum Listo. Hash Local (Escuchando): 9abc1234def56789...
-   ```
-4. **Iniciar el Puente B:** Inicie el servicio en el segundo servidor de igual manera para obtener su propio *Hash Local* (ej: `1234abcd5678...`).
-5. **Cruzar los Hashes:** 
-   - En el servidor A, edite `/etc/mesh-rns-bridge/config.ini` y establezca `destination_hash = 1234abcd5678...` (el hash del servidor B).
-   - En el servidor B, establezca `destination_hash = 9abc1234def56789...` (el hash del servidor A).
-6. **Reiniciar servicios:** Ejecute `sudo systemctl restart mesh-rns-bridge` en ambos extremos. El tráfico ahora fluirá bidireccionalmente según las reglas de filtrado establecidas.
+## 🔗 Configuración de Nodos Distantes (Destination Hash)
+
+Para crear un túnel entre dos brokers MQTT distantes (Nodo A y Nodo B) a través de RNS:
+
+1. **Formato JSON:** Asegúrese de que el gateway emisor (Meshtastic) tenga habilitada la salida hacia MQTT en formato **JSON**. De lo contrario, los paquetes cifrados nativos serán ignorados para ahorrar ancho de banda.
+2. **Obtener Hashes Locales:** Inicie el servicio en ambos servidores con el campo `destination_hash` en blanco. Revise los logs para encontrar el *Hash Local* de escucha de cada uno (ej. `9abc1234...`).
+3. **Cruzar los Hashes:** 
+   - En el `config.ini` del Servidor A, configure `destination_hash` con el Hash del Servidor B.
+   - En el `config.ini` del Servidor B, configure `destination_hash` con el Hash del Servidor A.
+4. **Reiniciar:** Ejecute `sudo systemctl restart mesh-rns-bridge` en ambos servidores. ¡El tráfico ahora fluirá bidireccionalmente!
+
+---
+
+## 🤝 Comunidad y Licencia
+
+Este proyecto está liberado bajo la licencia **MIT**. Su uso es totalmente libre para fines experimentales, respuesta a emergencias y proyectos comunitarios solidarios. 
+
+Si este desarrollo te ha sido útil, te invitamos a mantener el reconocimiento y el enlace hacia el proyecto original.
+
+### Contacto CIPRO Panamá
+
+- 🌐 **Sitio Web:** [www.cipropanama.org](https://www.cipropanama.org)
+- ✉️ **Correo Electrónico:** [info@cipropanama.org](mailto:info@cipropanama.org)
+
+<div align="center">
+  <i>Desarrollado con ❤️ para las telecomunicaciones libres.</i>
+</div>
